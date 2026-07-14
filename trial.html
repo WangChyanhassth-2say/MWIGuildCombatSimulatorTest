@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MWI 公会战斗试炼模拟器</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.0/css/bootstrap.min.css">
+  <style>
+    body { background: #fff; color: #212529; }
+    .outlined-box { border: 1px solid #ccc; border-radius: 4px; padding: 15px; box-shadow: 0 4px 8px rgba(0,0,0,.08); }
+    .preset-card { width: 128px; min-height: 84px; cursor: grab; user-select: none; }
+    .preset-card.fixed { color: #146c43; background: #d1e7dd; border-color: #a3cfbb; }
+    .preset-card.default { color: #495057; background: #e9ecef; border-color: #ced4da; }
+    .preset-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preset-context-menu { position: fixed; z-index: 1100; min-width: 130px; padding: 5px; background: #fff; border: 1px solid #ced4da; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+    .preset-context-menu button { width: 100%; border: 0; border-radius: 3px; padding: 6px 10px; background: transparent; text-align: left; }
+    .preset-context-menu button:hover { background: #e9ecef; }
+    .preset-context-menu .delete-action { color: #dc3545; }
+    .roster-grid { display: grid; grid-template-columns: repeat(8, minmax(42px, 1fr)); gap: 7px; }
+    .roster-slot { position: relative; aspect-ratio: 1; min-width: 0; padding: 3px; border: 1px dashed #adb5bd; border-radius: 4px; background: #fff; color: #adb5bd; }
+    .roster-slot.fixed { color: #146c43; background: #d1e7dd; border: 1px solid #75b798; }
+    .roster-slot.default { color: #495057; background: #e9ecef; border: 1px solid #adb5bd; }
+    .slot-number { position: absolute; top: 2px; left: 4px; font-size: 9px; opacity: .7; }
+    .slot-label { display: block; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .summary-item { padding: 8px 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+    .summary-item small { display: block; color: #6c757d; }
+    .summary-item strong { font-size: 18px; }
+    .editor-backdrop { position: fixed; inset: 0; z-index: 1050; overflow: auto; padding: 24px; background: rgba(0,0,0,.4); }
+    .editor-dialog { width: min(1180px, 100%); margin: auto; background: #fff; border: 1px solid #ced4da; border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+    .editor-body { max-height: calc(100vh - 150px); overflow: auto; }
+    .editor-section { padding: 15px; border: 1px solid #dee2e6; border-radius: 4px; }
+    .equipment-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
+    .equipment-row { display: grid; grid-template-columns: 82px 1fr 75px; gap: 7px; align-items: center; padding: 7px; background: #f8f9fa; }
+    .ability-panel { padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+    .trigger-row { display: grid; grid-template-columns: 1fr 1.3fr .9fr 80px 38px; gap: 6px; margin-top: 7px; }
+    .progress { height: 22px; }
+    @media (max-width: 900px) {
+      .roster-grid { grid-template-columns: repeat(5, 1fr); }
+      .summary-grid, .equipment-grid { grid-template-columns: 1fr 1fr; }
+      .trigger-row { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+  <script>if (!localStorage.getItem("i18nextLng")) localStorage.setItem("i18nextLng", "zh");</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/i18next/21.6.10/i18next.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/i18next-browser-languagedetector/6.1.3/i18nextBrowserLanguageDetector.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/i18next-http-backend/1.3.2/i18nextHttpBackend.min.js"></script>
+  <script src="js/i18n.js"></script>
+</head>
+<body class="p-3">
+  <main class="container-fluid">
+    <section class="outlined-box mb-3">
+      <div class="row g-3 align-items-end">
+        <div class="col-sm-3 col-lg-2">
+          <label class="form-label" for="startLevel" data-trial-i18n="startLevel">起始等级</label>
+          <input id="startLevel" class="form-control" type="number" min="100" max="300" step="10">
+        </div>
+        <div class="col-sm-3 col-lg-2">
+          <label class="form-label" for="maxLevel" data-trial-i18n="maxLevel">最高等级</label>
+          <input id="maxLevel" class="form-control" type="number" min="100" max="300" step="10">
+        </div>
+        <div class="col-sm-3 col-lg-2">
+          <label class="form-label" for="timeLimit" data-trial-i18n="timeLimit">模拟时限（分钟）</label>
+          <input id="timeLimit" class="form-control" type="number" min="1" max="1440">
+        </div>
+      </div>
+    </section>
+
+    <section class="outlined-box mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h5 class="mb-0" data-trial-i18n="fixedPresets">固定预设</h5>
+        <button id="addFixedPreset" class="btn btn-success btn-sm" data-trial-i18n="addFixedPreset">添加固定预设</button>
+      </div>
+      <div id="fixedPresets" class="d-flex flex-wrap gap-2"></div>
+      <hr>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h5 class="mb-0" data-trial-i18n="defaultPresets">默认预设</h5>
+        <button id="addDefaultPreset" class="btn btn-secondary btn-sm" data-trial-i18n="addDefaultPreset">添加默认预设</button>
+      </div>
+      <div id="defaultPresets" class="d-flex flex-wrap gap-2"></div>
+    </section>
+
+    <div id="bosses" class="row g-3"></div>
+
+    <section class="outlined-box sticky-bottom mt-3 bg-white">
+      <div class="d-flex flex-wrap justify-content-end align-items-center gap-3">
+        <span id="runError" class="text-danger me-auto"></span>
+        <strong id="combinedPoints"></strong>
+        <button id="runBoth" class="btn btn-primary px-4" data-trial-i18n="startSimulation">开始模拟</button>
+      </div>
+    </section>
+  </main>
+  <div id="presetEditor"></div>
+  <div id="presetContextMenu"></div>
+  <script src="guild-trial.js"></script>
+</body>
+</html>
