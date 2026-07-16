@@ -37,15 +37,12 @@
     .ability-panel { padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
     .trigger-row { display: grid; grid-template-columns: 1fr 1.3fr .9fr 80px 38px; gap: 6px; margin-top: 7px; }
     .progress { height: 22px; }
-    .update-log { position: fixed; top: 48px; right: 10px; z-index: 999; width: min(390px, calc(100vw - 20px)); padding: 10px 12px; background: #fff; border: 1px solid #dee2e6; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.08); font-size: 13px; }
-    .update-log p, .update-log ul { margin-bottom: 8px; }
-    .update-log ul { padding-left: 20px; }
-    .update-log > :last-child { margin-bottom: 0; }
+    .patch-notes-button { position: fixed; top: 48px; right: 10px; z-index: 999; }
     @media (max-width: 900px) {
       .roster-grid { grid-template-columns: repeat(5, 1fr); }
       .summary-grid, .equipment-grid { grid-template-columns: 1fr 1fr; }
       .trigger-row { grid-template-columns: 1fr 1fr; }
-      .update-log { position: static; width: 100%; margin: 42px 0 12px; }
+      .patch-notes-button { position: static; margin: 42px 0 12px; text-align: right; }
     }
   </style>
   <script>if (!localStorage.getItem("i18nextLng")) localStorage.setItem("i18nextLng", "zh");</script>
@@ -55,16 +52,9 @@
   <script src="js/i18n.js"></script>
 </head>
 <body class="p-3">
-  <aside class="update-log" aria-label="更新日志">
-    <strong data-trial-i18n="update20260716Title">2026.7.16更新：</strong>
-    <p data-trial-i18n="update20260716Content">在队伍中，较弱玩家的光环或减益不再覆盖较强的效果。同一增益会以当前最强的来源生效，该来源到期后由次强的接替。</p>
-    <strong data-trial-i18n="update20260710Title">2026.7.10更新：</strong>
-    <ul>
-      <li data-trial-i18n="update20260710Architecture">公会试炼模拟器架构设计；</li>
-      <li data-trial-i18n="update20260710Regen">禁用食物饮料，改为3%自动回血回蓝；</li>
-      <li data-trial-i18n="update20260710Parry">君王剑格挡允许单次攻击最多判定5次；</li>
-    </ul>
-  </aside>
+  <div class="patch-notes-button">
+    <button id="buttonPatchNotes" class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#patchNotesModal" data-trial-i18n="patchNotes">更新日志</button>
+  </div>
   <main class="container-fluid">
     <section class="outlined-box mb-3">
       <div class="row g-3 align-items-end">
@@ -107,8 +97,42 @@
       </div>
     </section>
   </main>
+  <div class="modal" id="patchNotesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-trial-i18n="patchNotes">更新日志</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="container-fluid">
+            <div class="row">
+              <div class="col-12 mb-4">
+                <h6 data-trial-i18n="update20260716Title">2026.7.16更新：</h6>
+                <ul>
+                  <li data-trial-i18n="update20260716Content">在队伍中，较弱玩家的光环或减益不再覆盖较强的效果。同一增益会以当前最强的来源生效，该来源到期后由次强的接替。</li>
+                </ul>
+              </div>
+              <div class="col-12">
+                <h6 data-trial-i18n="update20260710Title">2026.7.10更新：</h6>
+                <ul>
+                  <li data-trial-i18n="update20260710Architecture">公会试炼模拟器架构设计；</li>
+                  <li data-trial-i18n="update20260710Regen">禁用食物饮料，改为3%自动回血回蓝；</li>
+                  <li data-trial-i18n="update20260710Parry">君王剑格挡允许单次攻击最多判定5次；</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-trial-i18n="close">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="presetEditor"></div>
   <div id="presetContextMenu"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.0/js/bootstrap.bundle.min.js"></script>
   <script src="guild-trial.js"></script>
 </body>
 </html>
