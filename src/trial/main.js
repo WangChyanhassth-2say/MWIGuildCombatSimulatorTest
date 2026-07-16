@@ -63,6 +63,12 @@ const trialMessages = {
         encounterBadger: "试炼獾", encounterChameleon: "试炼变色龙", encounterJellyfish: "试炼水母",
         encounterHedgehog: "试炼刺猬", encounterSwarm: "试炼虫群",
         reasonPartyWiped: "队伍团灭", reasonMaxLevel: "完成最高等级", reasonTimeLimit: "达到模拟时限", reasonStopped: "模拟停止",
+        update20260716Title: "2026.7.16更新：",
+        update20260716Content: "在队伍中，较弱玩家的光环或减益不再覆盖较强的效果。同一增益会以当前最强的来源生效，该来源到期后由次强的接替。",
+        update20260710Title: "2026.7.10更新：",
+        update20260710Architecture: "公会试炼模拟器架构设计；",
+        update20260710Regen: "禁用食物饮料，改为3%自动回血回蓝；",
+        update20260710Parry: "君王剑格挡允许单次攻击最多判定5次；",
     },
     en: {
         title: "MWI Guild Combat Trial Simulator", startLevel: "Start Level", maxLevel: "Max Level", timeLimit: "Time Limit (minutes)",
@@ -89,6 +95,12 @@ const trialMessages = {
         encounterBadger: "Trial Badger", encounterChameleon: "Trial Chameleon", encounterJellyfish: "Trial Jellyfish",
         encounterHedgehog: "Trial Hedgehog", encounterSwarm: "Trial Swarm",
         reasonPartyWiped: "Party Wiped", reasonMaxLevel: "Maximum Level Completed", reasonTimeLimit: "Time Limit Reached", reasonStopped: "Simulation Stopped",
+        update20260716Title: "2026.7.16 Update:",
+        update20260716Content: "In a party, weaker players' auras or debuffs no longer override stronger effects. Each buff uses its strongest active source, then falls back to the next strongest when that source expires.",
+        update20260710Title: "2026.7.10 Update:",
+        update20260710Architecture: "Designed the guild trial simulator architecture;",
+        update20260710Regen: "Disabled food and drinks and added 3% automatic HP/MP regeneration;",
+        update20260710Parry: "Regal Sword parry can be checked up to five times per attack;",
     },
 };
 

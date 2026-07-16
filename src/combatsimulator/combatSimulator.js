@@ -1111,7 +1111,7 @@ class CombatSimulator extends EventTarget {
                     "startTime": "0001-01-01T00:00:00Z",
                     "duration": ENRAGE_TICK_INTERVAL
             };
-            enemy.addBuffs([enrageDamageBuff, enrageAccuracyBuff]);
+            enemy.addBuffs([enrageDamageBuff, enrageAccuracyBuff], this.simulationTime);
             // enemy.addBuff(enrageDamageBuff);
             // enemy.addBuff(enrageAccuracyBuff);
             

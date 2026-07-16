@@ -151,6 +151,8 @@ class CombatUnit {
         },
     };
     combatBuffs = {};
+    buffCandidates = {};
+    nextBuffCandidateId = 0;
     permanentBuffs = {};
     zoneBuffs = {};
     extraBuffs = {};
@@ -371,60 +373,90 @@ class CombatUnit {
         this.combatDetails.combatStats.tenacity += this.getBuffBoost("/buff_types/tenacity").flatBoost;
     }
 
-    addBuffs(buffs, currentTime) {
-        buffs.forEach(buff => buff.startTime = currentTime);
+    getBuffStrength(buff) {
+        return Math.abs(buff.ratioBoost || 0) + Math.abs(buff.flatBoost || 0);
+    }
 
-        let needUpdate = false;
-        for (const buff of buffs) {
-            if (!this.combatBuffs[buff.uniqueHrid] || this.combatBuffs[buff.uniqueHrid].ratioBoost != buff.ratioBoost || this.combatBuffs[buff.uniqueHrid].flatBoost != buff.flatBoost) {
-                needUpdate = true;
-            }
-            this.combatBuffs[buff.uniqueHrid] = buff;
+    selectStrongestBuff(uniqueHrid) {
+        const candidates = this.buffCandidates[uniqueHrid] || [];
+        if (candidates.length === 0) {
+            delete this.combatBuffs[uniqueHrid];
+            return;
         }
 
+        this.combatBuffs[uniqueHrid] = candidates.reduce((strongest, candidate) => {
+            const strengthDifference = this.getBuffStrength(candidate) - this.getBuffStrength(strongest);
+            if (strengthDifference > 0) {
+                return candidate;
+            }
+            if (strengthDifference === 0 && candidate.startTime >= strongest.startTime) {
+                return candidate.candidateId > strongest.candidateId ? candidate : strongest;
+            }
+            return strongest;
+        });
+    }
+
+    effectiveBuffChanged(previousBuff, currentBuff) {
+        if (!previousBuff || !currentBuff) {
+            return previousBuff !== currentBuff;
+        }
+        return previousBuff.ratioBoost !== currentBuff.ratioBoost
+            || previousBuff.flatBoost !== currentBuff.flatBoost;
+    }
+
+    addBuffCandidate(buff, currentTime, isPermanent = false) {
+        const uniqueHrid = buff.uniqueHrid;
+        const previousBuff = this.combatBuffs[uniqueHrid];
+        const candidate = {
+            ...structuredClone(buff),
+            startTime: currentTime,
+            isPermanent,
+            candidateId: this.nextBuffCandidateId++,
+        };
+
+        if (!this.buffCandidates[uniqueHrid]) {
+            this.buffCandidates[uniqueHrid] = [];
+        }
+        this.buffCandidates[uniqueHrid].push(candidate);
+        this.selectStrongestBuff(uniqueHrid);
+
+        return this.effectiveBuffChanged(previousBuff, this.combatBuffs[uniqueHrid]);
+    }
+
+    addBuffs(buffs, currentTime) {
+        let needUpdate = false;
+        buffs.forEach((buff) => {
+            const effectiveBuffChanged = this.addBuffCandidate(buff, currentTime);
+            needUpdate = needUpdate || effectiveBuffChanged;
+        });
         if (needUpdate) {
             this.updateCombatDetails();
         }
     }
 
     addBuff(buff, currentTime) {
-        buff.startTime = currentTime;
-
-        let needUpdate = true;
-        if (this.combatBuffs[buff.uniqueHrid] && this.combatBuffs[buff.uniqueHrid].ratioBoost === buff.ratioBoost && this.combatBuffs[buff.uniqueHrid].flatBoost === buff.flatBoost) {
-            needUpdate = false;
-        }
-
-        this.combatBuffs[buff.uniqueHrid] = buff;
-
-        if (needUpdate) {
+        if (this.addBuffCandidate(buff, currentTime)) {
             this.updateCombatDetails();
         }
     }
 
     removeBuffs(buffs) {
         let needUpdate = false;
-        buffs.forEach(buff => {
-            if (!this.combatBuffs[buff.uniqueHrid]) {
-                return;
-            }
-            delete this.combatBuffs[buff.uniqueHrid];
-            needUpdate = true;
-        })
+        buffs.forEach((buff) => {
+            const uniqueHrid = buff.uniqueHrid;
+            const previousBuff = this.combatBuffs[uniqueHrid];
+            delete this.buffCandidates[uniqueHrid];
+            delete this.combatBuffs[uniqueHrid];
+            needUpdate = needUpdate || this.effectiveBuffChanged(previousBuff, undefined);
+        });
 
         if (needUpdate) {
             this.updateCombatDetails();
         }
-
     }
 
     removeBuff(buff) {
-        if (!this.combatBuffs[buff.uniqueHrid]) {
-            return;
-        }
-        delete this.combatBuffs[buff.uniqueHrid];
-
-        this.updateCombatDetails();
+        this.removeBuffs([buff]);
     }
 
     addPermanentBuff(buff) {
@@ -468,18 +500,30 @@ class CombatUnit {
     }
 
     removeExpiredBuffs(currentTime) {
-        let expiredBuffs = Object.values(this.combatBuffs).filter(
-            (buff) => buff.startTime + buff.duration <= currentTime
-        );
-        expiredBuffs.forEach((buff) => {
-            delete this.combatBuffs[buff.uniqueHrid];
+        let needUpdate = false;
+        Object.keys(this.buffCandidates).forEach((uniqueHrid) => {
+            const previousBuff = this.combatBuffs[uniqueHrid];
+            this.buffCandidates[uniqueHrid] = this.buffCandidates[uniqueHrid].filter(
+                (buff) => buff.isPermanent || buff.startTime + buff.duration > currentTime
+            );
+            if (this.buffCandidates[uniqueHrid].length === 0) {
+                delete this.buffCandidates[uniqueHrid];
+            }
+            this.selectStrongestBuff(uniqueHrid);
+            needUpdate = needUpdate || this.effectiveBuffChanged(previousBuff, this.combatBuffs[uniqueHrid]);
         });
 
-        this.updateCombatDetails();
+        if (needUpdate) {
+            this.updateCombatDetails();
+        }
     }
 
     clearBuffs() {
-        this.combatBuffs = structuredClone(this.permanentBuffs);
+        this.combatBuffs = {};
+        this.buffCandidates = {};
+        Object.values(this.permanentBuffs).forEach((buff) => {
+            this.addBuffCandidate(buff, Number.NEGATIVE_INFINITY, true);
+        });
         this.updateCombatDetails();
     }
 
