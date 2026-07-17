@@ -573,6 +573,9 @@ function getTrigger(key) {
 }
 
 function bindEditorEvents() {
+    document.querySelector(".editor-backdrop")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) closeEditor();
+    });
     document.getElementById("editorName").addEventListener("input", (event) => editorDraft.name = event.target.value);
     document.getElementById("editorType").addEventListener("change", (event) => editorDraft.type = event.target.value);
     document.querySelectorAll("[data-level]").forEach((input) => input.addEventListener("input", () => {
