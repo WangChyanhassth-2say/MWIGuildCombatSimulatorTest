@@ -1,7 +1,7 @@
 {
   "/guild_trial_encounters/badger": {
     "name": "Trial Badger",
-    "monsterHrids": ["/monsters/trial_badger"]
+    "monsterHrids": ["/monsters/trial_badger", "/monsters/trial_badger"]
   },
   "/guild_trial_encounters/chameleon": {
     "name": "Trial Chameleon",
