@@ -2,8 +2,8 @@ import solver from "javascript-lp-solver";
 
 const AURA_SELECTION_PRIORITY = 1000;
 
-function roleScore(bossData, tag, importanceDivisor) {
-    return Number(bossData.gain?.[tag] || 0) + Number(bossData.importance?.[tag] || 0) / Math.max(1, Number(importanceDivisor) || 1);
+function roleScore(bossData, tag) {
+    return Number(bossData.gain?.[tag] || 0);
 }
 
 function bestAuraStrengths(candidates, bossEntries) {
@@ -17,7 +17,7 @@ function bestAuraStrengths(candidates, bossEntries) {
 function auraScore(bossData, aura, strength, bestStrength) {
     if (Number(strength || 0) <= 0) return 0;
     const ratio = Number(bestStrength || 0) > 0 ? Number(strength || 0) / Number(bestStrength || 0) : 0;
-    return (AURA_SELECTION_PRIORITY + Number(bossData.importance?.[aura] || 0)) * ratio;
+    return AURA_SELECTION_PRIORITY * ratio;
 }
 
 function allocationMissingItems(candidates, bossEntries) {
@@ -38,7 +38,7 @@ function allocationMissingItems(candidates, bossEntries) {
     return missing;
 }
 
-function buildAllocationModel({ candidates, bossEntries, rosterLimit, importanceDivisor, diminishingPenalty }) {
+function buildAllocationModel({ candidates, bossEntries, rosterLimit, diminishingPenalty }) {
     const model = {
         optimize: "score",
         opType: "max",
@@ -83,7 +83,7 @@ function buildAllocationModel({ candidates, bossEntries, rosterLimit, importance
     for (const candidate of candidates) {
         for (const [bossId, bossData] of bossEntries) {
             for (const [tagIndex, tag] of candidate.roleTags.entries()) {
-                const rawScore = roleScore(bossData, tag, importanceDivisor) + 0.01;
+                const rawScore = roleScore(bossData, tag) + 0.01;
                 const variableName = `x_${candidate.playerIndex}_${bossId}_${tagIndex}`;
                 model.variables[variableName] = {
                     score: rawScore,
