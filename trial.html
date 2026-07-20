@@ -12,8 +12,17 @@
     .outlined-box { border: 1px solid #ccc; border-radius: 4px; padding: 15px; box-shadow: 0 4px 8px rgba(0,0,0,.08); }
     .preset-card { width: 128px; min-height: 84px; cursor: grab; user-select: none; }
     .preset-card.fixed { color: #146c43; background: #d1e7dd; border-color: #a3cfbb; }
+    .preset-card.api-fixed { color: #664d03; background: #fff3cd; border-color: #ffda6a; box-shadow: inset 0 0 0 1px rgba(255,193,7,.35); }
+    .preset-card.api-reviewed-source { color: #05445e; background: #d7f6ff; border-color: #86dff2; box-shadow: inset 0 0 0 1px rgba(13,202,240,.35); }
+    .preset-card.generated-fixed { color: #3d0a66; background: #eadcff; border-color: #c5a3ff; box-shadow: inset 0 0 0 1px rgba(111,66,193,.28); }
+    .preset-card.reviewed { color: #055160; background: #cff4fc; border-color: #9eeaf9; }
+    .preset-card.source-stale { color: #653208; background: #ffe5d0; border-color: #fd9843; box-shadow: inset 0 0 0 1px rgba(253,126,20,.45); }
     .preset-card.default { color: #495057; background: #e9ecef; border-color: #ced4da; }
+    .preset-card.bulk-selected { outline: 3px solid #0d6efd; outline-offset: 2px; }
+    .preset-bulk-checkbox { position: absolute; top: 4px; right: 4px; }
     .preset-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preset-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; margin-top: 4px; }
+    .preset-tag { max-width: 100%; padding: 1px 4px; border-radius: 999px; background: rgba(13,110,253,.12); color: #084298; font-size: 10px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .preset-context-menu { position: fixed; z-index: 1100; min-width: 130px; padding: 5px; background: #fff; border: 1px solid #ced4da; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
     .preset-context-menu button { width: 100%; border: 0; border-radius: 3px; padding: 6px 10px; background: transparent; text-align: left; }
     .preset-context-menu button:hover { background: #e9ecef; }
@@ -21,9 +30,13 @@
     .roster-grid { display: grid; grid-template-columns: repeat(8, minmax(42px, 1fr)); gap: 7px; }
     .roster-slot { position: relative; aspect-ratio: 1; min-width: 0; padding: 3px; border: 1px dashed #adb5bd; border-radius: 4px; background: #fff; color: #adb5bd; }
     .roster-slot.fixed { color: #146c43; background: #d1e7dd; border: 1px solid #75b798; }
+    .roster-slot.api-fixed { color: #664d03; background: #fff3cd; border: 1px solid #ffda6a; }
+    .roster-slot.api-reviewed-source { color: #05445e; background: #d7f6ff; border: 1px solid #86dff2; }
+    .roster-slot.generated-fixed { color: #3d0a66; background: #eadcff; border: 1px solid #c5a3ff; }
+    .roster-slot.reviewed { color: #055160; background: #cff4fc; border: 1px solid #9eeaf9; }
     .roster-slot.default { color: #495057; background: #e9ecef; border: 1px solid #adb5bd; }
     .slot-number { position: absolute; top: 2px; left: 4px; font-size: 9px; opacity: .7; }
-    .slot-label { display: block; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .slot-label { display: block; overflow: hidden; font-size: 10px; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; }
     .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
     .summary-item { padding: 8px 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
     .summary-item small { display: block; color: #6c757d; }
@@ -35,14 +48,23 @@
     .equipment-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
     .equipment-row { display: grid; grid-template-columns: 82px 1fr 75px; gap: 7px; align-items: center; padding: 7px; background: #f8f9fa; }
     .ability-panel { padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+    .tag-checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px 10px; }
+    .tag-checkbox { margin-bottom: 0; padding: 6px 8px 6px 28px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; }
     .trigger-row { display: grid; grid-template-columns: 1fr 1.3fr .9fr 80px 38px; gap: 6px; margin-top: 7px; }
     .progress { height: 22px; }
-    .patch-notes-button { position: fixed; top: 48px; right: 10px; z-index: 999; }
+    .ablation-grid { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 10px; align-items: end; }
+    .ablation-results { max-height: 320px; overflow: auto; }
+    .allocation-grid { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 10px; align-items: end; }
+    .allocation-results { max-height: 360px; overflow: auto; }
+    .allocation-config-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(560px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 6px; }
+    .allocation-config-boss { min-width: 0; }
+    .page-actions { position: fixed; top: 48px; right: 10px; z-index: 999; display: grid; gap: 8px; justify-items: end; }
     @media (max-width: 900px) {
       .roster-grid { grid-template-columns: repeat(5, 1fr); }
       .summary-grid, .equipment-grid { grid-template-columns: 1fr 1fr; }
+      .ablation-grid, .allocation-grid { grid-template-columns: 1fr 1fr; }
       .trigger-row { grid-template-columns: 1fr 1fr; }
-      .patch-notes-button { position: static; margin: 42px 0 12px; text-align: right; }
+      .page-actions { position: static; margin: 42px 0 12px; justify-items: end; }
     }
   </style>
   <script>if (!localStorage.getItem("i18nextLng")) localStorage.setItem("i18nextLng", "zh");</script>
@@ -52,8 +74,11 @@
   <script src="js/i18n.js"></script>
 </head>
 <body class="p-3">
-  <div class="patch-notes-button">
+  <div class="page-actions">
     <button id="buttonPatchNotes" class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#patchNotesModal" data-trial-i18n="patchNotes">更新日志</button>
+    <button id="importApiBuilds" class="btn btn-outline-primary btn-sm" type="button" data-trial-i18n="importApiBuilds">从 API 导入配装</button>
+    <button id="buttonPresetTransfer" class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#presetTransferModal" data-trial-i18n="presetTransfer">导入/导出完整预设</button>
+    <button id="buttonAbExport" class="btn btn-outline-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#abExportModal" data-trial-i18n="abExport">导出当前安排 JSON</button>
   </div>
   <main class="container-fluid">
     <section class="outlined-box mb-3">
@@ -70,15 +95,29 @@
           <label class="form-label" for="timeLimit" data-trial-i18n="timeLimit">模拟时限（分钟）</label>
           <input id="timeLimit" class="form-control" type="number" min="1" max="1440">
         </div>
+        <div class="col-sm-3 col-lg-2">
+          <label class="form-label" for="rosterLimit" data-trial-i18n="rosterLimit">阵容人数上限</label>
+          <input id="rosterLimit" class="form-control" type="number" min="1" max="120">
+        </div>
       </div>
     </section>
 
     <section class="outlined-box mb-3">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <h5 class="mb-0" data-trial-i18n="fixedPresets">固定预设</h5>
-        <button id="addFixedPreset" class="btn btn-success btn-sm" data-trial-i18n="addFixedPreset">添加固定预设</button>
+        <div class="d-flex flex-wrap gap-2">
+          <button id="clearInsanityRevive" class="btn btn-outline-warning btn-sm" data-trial-i18n="clearInsanityRevive">清除疯狂/复活</button>
+          <button id="bulkDeletePresets" class="btn btn-outline-danger btn-sm" data-trial-i18n="bulkDeletePresets">批量删除预设</button>
+          <button id="addFixedPreset" class="btn btn-success btn-sm" data-trial-i18n="addFixedPreset">添加固定预设</button>
+        </div>
       </div>
+      <div id="bulkDeleteControls" class="d-none mb-2"></div>
       <div id="fixedPresets" class="d-flex flex-wrap gap-2"></div>
+      <hr>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h5 class="mb-0" data-trial-i18n="reviewedPresets">Reviewed 预设</h5>
+      </div>
+      <div id="reviewedPresets" class="d-flex flex-wrap gap-2"></div>
       <hr>
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <h5 class="mb-0" data-trial-i18n="defaultPresets">默认预设</h5>
@@ -88,6 +127,12 @@
     </section>
 
     <div id="bosses" class="row g-3"></div>
+
+    <section id="simulationResultTools" class="outlined-box mt-3"></section>
+
+    <section id="apiAllocationPanel" class="outlined-box mt-3"></section>
+
+    <section id="baselineAblationPanel" class="outlined-box mt-3"></section>
 
     <section class="outlined-box sticky-bottom mt-3 bg-white">
       <div class="d-flex flex-wrap justify-content-end align-items-center gap-3">
@@ -110,6 +155,8 @@
               <div class="col-12 mb-4">
                 <h6 data-trial-i18n="update20260717Title">2026.7.17更新：</h6>
                 <ul>
+                  <li data-trial-i18n="update20260717ApiImport">新增 API 配装导入，API 固定预设以金色显示；复制 API 预设后会转为普通绿色固定预设。</li>
+                  <li data-trial-i18n="update20260717PresetTransfer">新增完整预设导入/导出，可用压缩文本备份和恢复当前设置、全部预设与阵容。</li>
                   <li data-trial-i18n="update20260717Editor">预设编辑弹窗支持点击外侧区域关闭。</li>
                   <li data-trial-i18n="update20260717Badger">试炼獾遭遇改为两只试炼獾。</li>
                 </ul>
@@ -137,7 +184,91 @@
       </div>
     </div>
   </div>
+  <div class="modal" id="presetTransferModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-trial-i18n="presetTransfer">导入/导出完整预设</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted" data-trial-i18n="compressedPresetHint">导出会把当前页面的设置、全部预设和阵容压缩到下面文本框；导入时粘贴文本后点击导入。</p>
+          <label class="form-label" for="presetTransferText" data-trial-i18n="compressedPresets">压缩预设文本</label>
+          <textarea id="presetTransferText" class="form-control font-monospace" rows="12"></textarea>
+          <div id="presetTransferMessage" class="small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-primary" id="exportCompressedPresets" data-trial-i18n="exportCompressedPresets">生成导出文本</button>
+          <button type="button" class="btn btn-primary" id="importCompressedPresets" data-trial-i18n="importCompressedPresets">导入压缩文本</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-trial-i18n="close">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal" id="abExportModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-trial-i18n="abExport">导出当前安排 JSON</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted" data-trial-i18n="abExportHint">根据当前两个 Boss 阵容生成当前安排 JSON；无法识别角色 ID 的条目会列在下面。若已读取过 API，会直接复用当前页面内存缓存。</p>
+          <label class="form-label" for="abExportReadableText" data-trial-i18n="abExportReadable">可识别安排 JSON</label>
+          <textarea id="abExportReadableText" class="form-control font-monospace" rows="10" readonly></textarea>
+          <label class="form-label mt-3" for="abExportUnreadableText" data-trial-i18n="abExportUnreadable">需手动处理的条目</label>
+          <textarea id="abExportUnreadableText" class="form-control font-monospace" rows="8"></textarea>
+          <div id="abExportMessage" class="small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-primary" id="exportAbAssignments" data-trial-i18n="exportAbAssignments">生成当前安排 JSON</button>
+          <button type="button" class="btn btn-outline-success" id="mergeAbManualAssignments" data-trial-i18n="mergeAbManualAssignments">合并手动条目到上方</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-trial-i18n="close">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal" id="apiImportModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-trial-i18n="apiImportTitle">从 API 导入配装</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted" data-trial-i18n="apiUrlHint">API 地址只用于本次读取，不会写入页面缓存、完整预设导出或 localStorage。读取成功后会清空输入框；API 返回内容会暂存在当前页面内存中供导出当前安排 JSON 使用。</p>
+          <label class="form-label" for="apiImportUrl" data-trial-i18n="apiUrl">API 地址</label>
+          <input id="apiImportUrl" class="form-control" type="url" autocomplete="off" spellcheck="false">
+          <div id="apiImportMessage" class="small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="fetchApiImport" data-trial-i18n="apiFetch">读取 API</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-trial-i18n="close">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="presetEditor"></div>
+  <div class="modal" id="allocationConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-trial-i18n="allocationConfig">Boss 配置参数</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted" data-trial-i18n="allocationConfigHint">这里配置每个 Boss 的生存线、必需光环、职业增量收益和重要性。保存后会影响下一次 API 自动分配，并随完整预设导出。</p>
+          <div id="allocationConfigEditor"></div>
+          <div id="allocationConfigMessage" class="small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-success" id="importAblationAllocationConfig" data-trial-i18n="importAblationAllocationConfig">导入消融数据</button>
+          <button type="button" class="btn btn-primary" id="saveAllocationConfig" data-trial-i18n="saveAllocationConfig">保存配置</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-trial-i18n="close">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="presetContextMenu"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.0/js/bootstrap.bundle.min.js"></script>
   <script src="guild-trial.js"></script>

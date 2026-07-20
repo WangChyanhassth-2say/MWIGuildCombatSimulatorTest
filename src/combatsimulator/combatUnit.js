@@ -446,7 +446,7 @@ class CombatUnit {
             const uniqueHrid = buff.uniqueHrid;
             const previousBuff = this.combatBuffs[uniqueHrid];
             delete this.buffCandidates[uniqueHrid];
-            delete this.combatBuffs[uniqueHrid];
+            delete this.combatBuffs[buff.uniqueHrid];
             needUpdate = needUpdate || this.effectiveBuffChanged(previousBuff, undefined);
         });
 
