@@ -269,8 +269,30 @@
           <div id="allocationConfigMessage" class="small mt-2"></div>
         </div>
         <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" id="openAllocationConfigTransfer" data-trial-i18n="allocationConfigTransfer">导入/导出 Boss 参数</button>
           <button type="button" class="btn btn-outline-success" id="importAblationAllocationConfig" data-trial-i18n="importAblationAllocationConfig">导入消融数据</button>
           <button type="button" class="btn btn-primary" id="saveAllocationConfig" data-trial-i18n="saveAllocationConfig">保存配置</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-trial-i18n="close">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal" id="allocationConfigTransferModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" data-trial-i18n="allocationConfigTransfer">导入/导出 Boss 参数</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted" data-trial-i18n="allocationConfigTransferHint">导出会把当前 Boss 配置参数压缩到下面文本框；导入时粘贴文本后点击导入，会覆盖当前 Boss 配置。</p>
+          <label class="form-label" for="allocationConfigTransferText" data-trial-i18n="allocationConfigTransferText">Boss 参数文本</label>
+          <textarea id="allocationConfigTransferText" class="form-control font-monospace" rows="12"></textarea>
+          <div id="allocationConfigTransferMessage" class="small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-primary" id="exportAllocationConfig" data-trial-i18n="exportAllocationConfig">生成导出文本</button>
+          <button type="button" class="btn btn-primary" id="importAllocationConfig" data-trial-i18n="importAllocationConfig">导入 Boss 参数</button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-trial-i18n="close">关闭</button>
         </div>
       </div>

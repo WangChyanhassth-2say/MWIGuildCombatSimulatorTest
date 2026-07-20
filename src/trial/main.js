@@ -92,6 +92,10 @@ const trialMessages = {
         allocationRoleTagName: "职业 tag", allocationGain: "增量收益", allocationImportance: "重要性",
         addAllocationRule: "添加规则", addAllocationRoleScore: "添加职业参数", importAblationAllocationConfig: "导入消融数据",
         saveAllocationConfig: "保存配置", allocationConfigSaved: "Boss 配置参数已保存。", allocationConfigImported: "已导入 {count} 条消融数据到 {boss}。",
+        allocationConfigTransfer: "导入/导出 Boss 参数", allocationConfigTransferHint: "导出会把当前 Boss 配置参数压缩到下面文本框；导入时粘贴文本后点击导入，会覆盖当前 Boss 配置。",
+        allocationConfigTransferText: "Boss 参数文本", exportAllocationConfig: "生成导出文本", importAllocationConfig: "导入 Boss 参数",
+        allocationConfigExported: "Boss 参数已导出，可直接粘贴保存。", allocationConfigTransferImported: "Boss 参数已导入。",
+        allocationConfigTransferFailed: "Boss 参数导入/导出失败：{message}",
         delete: "删除",
         insanityReviveAssignment: "疯狂/复活补位", insanityWeight: "疯狂权重", reviveWeight: "复活权重",
         shieldUsesInvincible: "盾用无敌替代",
@@ -193,6 +197,10 @@ const trialMessages = {
         allocationRoleTagName: "Role Tag", allocationGain: "Gain", allocationImportance: "Importance",
         addAllocationRule: "Add Rule", addAllocationRoleScore: "Add Role Parameter", importAblationAllocationConfig: "Import Ablation Data",
         saveAllocationConfig: "Save Config", allocationConfigSaved: "Boss config saved.", allocationConfigImported: "Imported {count} ablation rows into {boss}.",
+        allocationConfigTransfer: "Import/Export Boss Config", allocationConfigTransferHint: "Export compresses the current boss config into the text box below. Paste a text and import to overwrite the current boss config.",
+        allocationConfigTransferText: "Boss Config Text", exportAllocationConfig: "Generate Export Text", importAllocationConfig: "Import Boss Config",
+        allocationConfigExported: "Boss config exported. You can copy and save it.", allocationConfigTransferImported: "Boss config imported.",
+        allocationConfigTransferFailed: "Boss config import/export failed: {message}",
         delete: "Delete",
         insanityReviveAssignment: "Insanity/Revive Assignment", insanityWeight: "Insanity Weight", reviveWeight: "Revive Weight",
         shieldUsesInvincible: "Use Invincible for shields",
@@ -2582,6 +2590,73 @@ function openAllocationConfigModal() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById("allocationConfigModal")).show();
 }
 
+function openAllocationConfigTransferModal() {
+    // Keep editor edits when exporting from the transfer modal.
+    if (document.querySelector("[data-allocation-boss]")) {
+        state.allocationConfig = allocationConfigFromEditor();
+    }
+    const textarea = document.getElementById("allocationConfigTransferText");
+    const message = document.getElementById("allocationConfigTransferMessage");
+    if (textarea) textarea.value = "";
+    if (message) {
+        message.className = "small mt-2";
+        message.textContent = "";
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("allocationConfigTransferModal")).show();
+}
+
+async function exportAllocationConfigTransfer() {
+    const textarea = document.getElementById("allocationConfigTransferText");
+    const message = document.getElementById("allocationConfigTransferMessage");
+    try {
+        if (document.querySelector("[data-allocation-boss]")) {
+            state.allocationConfig = allocationConfigFromEditor();
+        }
+        const payload = {
+            type: "mwi-allocation-config",
+            version: 1,
+            allocationConfig: normalizeAllocationConfig(state.allocationConfig),
+        };
+        textarea.value = await compressText(JSON.stringify(payload));
+        textarea.focus();
+        textarea.select();
+        await navigator.clipboard?.writeText(textarea.value).catch(() => {});
+        message.className = "small mt-2 text-success";
+        message.textContent = tr("allocationConfigExported");
+    } catch (error) {
+        message.className = "small mt-2 text-danger";
+        message.textContent = tr("allocationConfigTransferFailed", { message: error.message });
+    }
+}
+
+async function importAllocationConfigTransfer() {
+    const textarea = document.getElementById("allocationConfigTransferText");
+    const message = document.getElementById("allocationConfigTransferMessage");
+    try {
+        const imported = JSON.parse(await decompressText(textarea.value));
+        const config = imported?.allocationConfig || imported;
+        if (!config?.bosses || typeof config.bosses !== "object") {
+            throw new Error("Missing bosses");
+        }
+        state.allocationConfig = normalizeAllocationConfig(config);
+        allocationState.result = null;
+        allocationState.message = tr("allocationConfigTransferImported");
+        saveState();
+        renderAllocationPanel();
+        renderAllocationConfigEditor();
+        message.className = "small mt-2 text-success";
+        message.textContent = tr("allocationConfigTransferImported");
+        const configMessage = document.getElementById("allocationConfigMessage");
+        if (configMessage) {
+            configMessage.className = "small mt-2 text-success";
+            configMessage.textContent = tr("allocationConfigTransferImported");
+        }
+    } catch (error) {
+        message.className = "small mt-2 text-danger";
+        message.textContent = tr("allocationConfigTransferFailed", { message: error.message });
+    }
+}
+
 function auraForPlayer(bossResult, presetId) {
     return bossResult.auras.find((aura) => aura.presetId === presetId);
 }
@@ -3865,6 +3940,8 @@ function bindPageEvents() {
     document.getElementById("fetchApiImport").addEventListener("click", fetchApiPayloadFromModal);
     document.getElementById("exportCompressedPresets").addEventListener("click", exportCompressedPresets);
     document.getElementById("importCompressedPresets").addEventListener("click", importCompressedPresets);
+    document.getElementById("exportAllocationConfig").addEventListener("click", exportAllocationConfigTransfer);
+    document.getElementById("importAllocationConfig").addEventListener("click", importAllocationConfigTransfer);
     document.getElementById("exportAbAssignments").addEventListener("click", exportAbAssignments);
     document.getElementById("mergeAbManualAssignments").addEventListener("click", mergeAbManualAssignments);
     document.getElementById("bulkDeletePresets").addEventListener("click", () => setBulkDeleteEnabled(true));
@@ -4117,6 +4194,10 @@ function bindPageEvents() {
                 message.className = "small mt-2 text-success";
                 message.textContent = tr("allocationConfigSaved");
             }
+            return;
+        }
+        if (event.target.closest("#openAllocationConfigTransfer")) {
+            openAllocationConfigTransferModal();
             return;
         }
         if (event.target.closest("#importAblationAllocationConfig")) {
