@@ -14,7 +14,6 @@ const MAX_ROSTER_LIMIT = 120;
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const LEGACY_API_SOURCE = ["w", "v"].join("");
-const AURA_SELECTION_PRIORITY = 1000;
 const IMPORTANCE_COVERAGE_DECAY = 0.5;
 const format = (value) => new Intl.NumberFormat("zh-CN").format(Math.round(Number(value) || 0));
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -86,8 +85,8 @@ const trialMessages = {
         allocationContribution: "贡献", allocationTagStats: "Tag 统计", allocationAuraStats: "光环统计",
         allocationFailed: "自动分配失败：{message}", allocationInfeasible: "没有找到满足约束的分配方案",
         allocationMissing: "缺少可行候选：{items}", allocationApplied: "已应用自动分配到当前阵容。",
-        allocationHint: "使用 Reviewed 预设、tag、真实光环强度、增量消融收益和封顶重要性自动分配当前两个 Boss。",
-        allocationConfig: "Boss 配置参数", allocationConfigHint: "这里配置每个 Boss 的生存线、必需光环、职业增量收益和重要性。重要性只奖励生存线缺口，不会无限堆叠。",
+        allocationHint: "沿用旧版分配：增量收益 + 折算后的封顶重要性 + 真实光环强度比；重要性覆盖生存线后不再追加。",
+        allocationConfig: "Boss 配置参数", allocationConfigHint: "这里配置每个 Boss 的生存线、必需光环、职业增量收益和重要性。重要性按默认职业预设数折算，并以 cover 封顶。",
         allocationSurvivalRules: "生存线 / 硬约束", allocationRequiredAuras: "必需光环", allocationRoleScores: "职业预设参数",
         allocationRuleName: "规则名", allocationRuleTags: "满足 tag（逗号分隔）", allocationRuleMin: "最少数量",
         allocationRoleTagName: "职业 tag", allocationGain: "增量收益", allocationImportance: "重要性",
@@ -187,8 +186,8 @@ const trialMessages = {
         allocationContribution: "Contribution", allocationTagStats: "Tag Stats", allocationAuraStats: "Aura Stats",
         allocationFailed: "Auto allocation failed: {message}", allocationInfeasible: "No allocation satisfies the constraints",
         allocationMissing: "Missing feasible candidates: {items}", allocationApplied: "Auto allocation applied to current rosters.",
-        allocationHint: "Allocates current two bosses using Reviewed presets, tags, real aura strength, increment gains, and capped importance.",
-        allocationConfig: "Boss Config", allocationConfigHint: "Configure survival constraints, required auras, role gain, and importance for each boss. Importance only rewards survival coverage gaps and does not stack endlessly.",
+        allocationHint: "Legacy-style allocation: increment gain + capped importance after divisor + real aura strength ratio. Importance stops after survival coverage.",
+        allocationConfig: "Boss Config", allocationConfigHint: "Configure survival constraints, required auras, role gain, and importance. Importance is divided by default role preset count and capped by cover variables.",
         allocationSurvivalRules: "Survival / Hard Constraints", allocationRequiredAuras: "Required Auras", allocationRoleScores: "Role Parameters",
         allocationRuleName: "Rule Name", allocationRuleTags: "Matching Tags (comma-separated)", allocationRuleMin: "Minimum Count",
         allocationRoleTagName: "Role Tag", allocationGain: "Gain", allocationImportance: "Importance",
@@ -1769,6 +1768,11 @@ function isSpecialAbilityNamedDefaultPreset(preset) {
     return preset.type === "default" && specialAbilityDisplayNames().has(normalizedAllocationName(preset.name));
 }
 
+function allocationImportanceDivisor() {
+    return Math.max(1, state.presets.filter((preset) =>
+        preset.type === "default" && !isSpecialAbilityNamedDefaultPreset(preset)).length);
+}
+
 function roleScore(bossData, tag) {
     return Number(bossData.gain?.[tag] || 0);
 }
@@ -1804,10 +1808,10 @@ function bestAuraStrengths(candidates, bossEntries = allocationBossEntries()) {
     ]));
 }
 
-function auraScore(bossData, aura, strength, bestStrength) {
+function auraScore(strength, bestStrength) {
     if (Number(strength || 0) <= 0) return 0;
     const ratio = Number(bestStrength || 0) > 0 ? Number(strength || 0) / Number(bestStrength || 0) : 0;
-    return AURA_SELECTION_PRIORITY * ratio;
+    return ratio;
 }
 
 function allocationImportanceCoverageGroups(bossData) {
@@ -1937,6 +1941,7 @@ function allocationMissingItems(candidates) {
 
 function buildAllocationModel(candidates) {
     const diminishingPenalty = Number(allocationState.diminishingPenalty) || 0;
+    const importanceDivisor = allocationImportanceDivisor();
     const bestStrengths = bestAuraStrengths(candidates);
     const model = {
         optimize: "score",
@@ -1947,14 +1952,15 @@ function buildAllocationModel(candidates) {
         options: { timeout: 20000 },
     };
     const metadata = {};
-    const bossIds = allocationBossEntries().map(([bossId]) => bossId);
+    const bossEntries = allocationBossEntries();
+    const bossIds = bossEntries.map(([bossId]) => bossId);
     const [firstBossId, secondBossId] = bossIds;
-    const coverageGroupsByBoss = Object.fromEntries(allocationBossEntries()
+    const coverageGroupsByBoss = Object.fromEntries(bossEntries
         .map(([bossId, bossData]) => [bossId, allocationImportanceCoverageGroups(bossData)]));
 
     for (const candidate of candidates) {
         model.constraints[`player_${candidate.playerIndex}`] = { max: 1 };
-        for (const [bossId, bossData] of allocationBossEntries()) {
+        for (const [bossId, bossData] of bossEntries) {
             model.constraints[`playerBoss_${candidate.playerIndex}_${bossId}`] = { max: 1 };
             model.constraints[`playerAura_${candidate.playerIndex}_${bossId}`] = { max: 1 };
             for (const [auraIndex] of (bossData.requiredAuras || []).entries()) {
@@ -1962,7 +1968,7 @@ function buildAllocationModel(candidates) {
             }
         }
     }
-    for (const [bossId, bossData] of allocationBossEntries()) {
+    for (const [bossId, bossData] of bossEntries) {
         model.constraints[`limit_${bossId}`] = { max: state.settings.rosterLimit };
         for (const aura of bossData.requiredAuras || []) {
             model.constraints[`aura_${bossId}_${aura}`] = { equal: 1 };
@@ -1976,7 +1982,7 @@ function buildAllocationModel(candidates) {
                 const variableName = `cover_${bossId}_${coverageIndex}_${count}`;
                 model.constraints[constraintName] = { min: 0 };
                 model.variables[variableName] = {
-                    score: group.importance * Math.pow(IMPORTANCE_COVERAGE_DECAY, count - 1),
+                    score: (group.importance / importanceDivisor) * Math.pow(IMPORTANCE_COVERAGE_DECAY, count - 1),
                     [constraintName]: -count,
                 };
                 model.binaries[variableName] = 1;
@@ -1997,10 +2003,10 @@ function buildAllocationModel(candidates) {
     }
 
     for (const candidate of candidates) {
-        for (const [bossId, bossData] of allocationBossEntries()) {
-            for (const tag of candidate.roleTags) {
+        for (const [bossId, bossData] of bossEntries) {
+            for (const [tagIndex, tag] of candidate.roleTags.entries()) {
                 const rawScore = roleScore(bossData, tag) + 0.01;
-                const variableName = `x_${candidate.playerIndex}_${bossId}_${candidate.roleTags.indexOf(tag)}`;
+                const variableName = `x_${candidate.playerIndex}_${bossId}_${tagIndex}`;
                 model.variables[variableName] = {
                     score: rawScore,
                     [`player_${candidate.playerIndex}`]: 1,
@@ -2033,7 +2039,7 @@ function buildAllocationModel(candidates) {
                 const strength = auraStrengthForPreset(candidate.preset, aura);
                 if (level <= 0 || strength <= 0) continue;
                 const variableName = `a_${candidate.playerIndex}_${bossId}_${bossData.requiredAuras.indexOf(aura)}`;
-                const score = auraScore(bossData, aura, strength, bestStrengths[aura]);
+                const score = auraScore(strength, bestStrengths[aura]);
                 model.variables[variableName] = {
                     score,
                     [`aura_${bossId}_${aura}`]: 1,
@@ -2047,6 +2053,80 @@ function buildAllocationModel(candidates) {
     }
 
     return { model, metadata };
+}
+
+function projectAllocationResult(solution, metadata, bossEntries, rosterLimit) {
+    const byBoss = Object.fromEntries(bossEntries.map(([bossId, bossData]) => [bossId, {
+        bossId,
+        bossIndex: bossData.bossIndex,
+        label: bossData.label,
+        encounterHrid: bossData.encounterHrid,
+        roles: [],
+        auras: [],
+    }]));
+    const roleCandidates = [];
+    const auraCandidates = [];
+    for (const [variableName, data] of Object.entries(metadata)) {
+        const value = Number(solution[variableName] || 0);
+        if (value < 0.5) continue;
+        if (data.type === "role") {
+            roleCandidates.push({
+                value,
+                score: data.score,
+                bossId: data.bossId,
+                presetId: data.candidate.preset.id,
+                playerName: data.candidate.preset.name,
+                playerIndex: data.candidate.playerIndex,
+                tag: data.tag,
+            });
+        } else {
+            auraCandidates.push({
+                value,
+                score: data.score,
+                bossId: data.bossId,
+                presetId: data.candidate.preset.id,
+                playerName: data.candidate.preset.name,
+                playerIndex: data.candidate.playerIndex,
+                aura: data.aura,
+                level: data.level,
+                strength: data.strength,
+            });
+        }
+    }
+    roleCandidates.sort((a, b) => b.value - a.value || b.score - a.score || a.playerName.localeCompare(b.playerName));
+    const usedPlayers = new Set();
+    for (const role of roleCandidates) {
+        if (usedPlayers.has(role.playerIndex)) continue;
+        if (byBoss[role.bossId].roles.length >= rosterLimit) continue;
+        usedPlayers.add(role.playerIndex);
+        byBoss[role.bossId].roles.push({
+            presetId: role.presetId,
+            playerName: role.playerName,
+            tag: role.tag,
+            score: role.score,
+        });
+    }
+    for (const [bossId, bossData] of bossEntries) {
+        const assignedIds = new Set(byBoss[bossId].roles.map((role) => role.presetId));
+        for (const aura of bossData.requiredAuras || []) {
+            const options = auraCandidates
+                .filter((entry) => entry.bossId === bossId && entry.aura === aura && assignedIds.has(entry.presetId))
+                .sort((a, b) => b.strength - a.strength || b.score - a.score);
+            const chosen = options[0];
+            if (!chosen) continue;
+            byBoss[bossId].auras.push({
+                presetId: chosen.presetId,
+                playerName: chosen.playerName,
+                aura: chosen.aura,
+                level: chosen.level,
+                strength: chosen.strength,
+                score: chosen.score,
+            });
+        }
+        byBoss[bossId].roles.sort((a, b) => b.score - a.score || a.playerName.localeCompare(b.playerName));
+        byBoss[bossId].auras.sort((a, b) => a.aura.localeCompare(b.aura));
+    }
+    return byBoss;
 }
 
 function solveApiAllocation() {
@@ -2069,41 +2149,9 @@ function solveApiAllocation() {
     if (!solution.feasible) {
         throw new Error(tr("allocationInfeasible"));
     }
-    const byBoss = Object.fromEntries(allocationBossEntries().map(([bossId, bossData]) => [bossId, {
-        bossId,
-        bossIndex: bossData.bossIndex,
-        label: bossData.label,
-        encounterHrid: bossData.encounterHrid,
-        roles: [],
-        auras: [],
-    }]));
-    for (const [variableName, data] of Object.entries(metadata)) {
-        if (Number(solution[variableName] || 0) < 0.5) continue;
-        if (data.type === "role") {
-            byBoss[data.bossId].roles.push({
-                presetId: data.candidate.preset.id,
-                playerName: data.candidate.preset.name,
-                tag: data.tag,
-                score: data.score,
-            });
-        } else {
-            byBoss[data.bossId].auras.push({
-                presetId: data.candidate.preset.id,
-                playerName: data.candidate.preset.name,
-                aura: data.aura,
-                level: data.level,
-                strength: data.strength,
-                score: data.score,
-            });
-        }
-    }
-    for (const boss of Object.values(byBoss)) {
-        boss.roles.sort((a, b) => b.score - a.score || a.playerName.localeCompare(b.playerName));
-        boss.auras.sort((a, b) => a.aura.localeCompare(b.aura));
-    }
     return {
         score: Number(solution.result || 0),
-        bosses: byBoss,
+        bosses: projectAllocationResult(solution, metadata, allocationBossEntries(), state.settings.rosterLimit),
         solvedAt: Date.now(),
     };
 }
@@ -2134,6 +2182,7 @@ function buildAllocationPayload() {
         candidates,
         bossEntries,
         rosterLimit: state.settings.rosterLimit,
+        importanceDivisor: allocationImportanceDivisor(),
         diminishingPenalty: Number(allocationState.diminishingPenalty) || 0,
     };
 }
