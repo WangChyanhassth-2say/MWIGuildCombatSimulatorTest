@@ -1,5 +1,7 @@
 import solver from "javascript-lp-solver";
 
+const AURA_SELECTION_PRIORITY = 1000;
+
 function roleScore(bossData, tag, importanceDivisor) {
     return Number(bossData.gain?.[tag] || 0) + Number(bossData.importance?.[tag] || 0) / Math.max(1, Number(importanceDivisor) || 1);
 }
@@ -15,7 +17,7 @@ function bestAuraStrengths(candidates, bossEntries) {
 function auraScore(bossData, aura, strength, bestStrength) {
     if (Number(strength || 0) <= 0) return 0;
     const ratio = Number(bestStrength || 0) > 0 ? Number(strength || 0) / Number(bestStrength || 0) : 0;
-    return Number(bossData.importance?.[aura] || 0) * ratio;
+    return (AURA_SELECTION_PRIORITY + Number(bossData.importance?.[aura] || 0)) * ratio;
 }
 
 function allocationMissingItems(candidates, bossEntries) {
@@ -117,10 +119,6 @@ function buildAllocationModel({ candidates, bossEntries, rosterLimit, importance
                     [`playerAura_${candidate.playerIndex}_${bossId}`]: 1,
                     [`linkAura_${candidate.playerIndex}_${bossId}_${auraIndex}`]: 1,
                 };
-                if (diminishingPenalty > 0 && firstBossId && secondBossId) {
-                    model.variables[variableName].balanceFirstBoss = bossId === firstBossId ? score : -score;
-                    model.variables[variableName].balanceSecondBoss = bossId === firstBossId ? -score : score;
-                }
                 model.binaries[variableName] = 1;
                 metadata[variableName] = { type: "aura", candidate, bossId, bossData, aura, level, strength, score };
             }

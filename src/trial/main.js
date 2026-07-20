@@ -14,6 +14,7 @@ const MAX_ROSTER_LIMIT = 120;
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const LEGACY_API_SOURCE = ["w", "v"].join("");
+const AURA_SELECTION_PRIORITY = 1000;
 const format = (value) => new Intl.NumberFormat("zh-CN").format(Math.round(Number(value) || 0));
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;",
@@ -1810,7 +1811,7 @@ function bestAuraStrengths(candidates, bossEntries = allocationBossEntries()) {
 function auraScore(bossData, aura, strength, bestStrength) {
     if (Number(strength || 0) <= 0) return 0;
     const ratio = Number(bestStrength || 0) > 0 ? Number(strength || 0) / Number(bestStrength || 0) : 0;
-    return Number(bossData.importance?.[aura] || 0) * ratio;
+    return (AURA_SELECTION_PRIORITY + Number(bossData.importance?.[aura] || 0)) * ratio;
 }
 
 function scoreDataForEncounter(encounterHrid) {
@@ -2004,10 +2005,6 @@ function buildAllocationModel(candidates) {
                     [`playerAura_${candidate.playerIndex}_${bossId}`]: 1,
                     [`linkAura_${candidate.playerIndex}_${bossId}_${bossData.requiredAuras.indexOf(aura)}`]: 1,
                 };
-                if (diminishingPenalty > 0 && firstBossId && secondBossId) {
-                    model.variables[variableName].balanceFirstBoss = bossId === firstBossId ? score : -score;
-                    model.variables[variableName].balanceSecondBoss = bossId === firstBossId ? -score : score;
-                }
                 model.binaries[variableName] = 1;
                 metadata[variableName] = { type: "aura", candidate, bossId, bossData, aura, level, strength, score };
             }
