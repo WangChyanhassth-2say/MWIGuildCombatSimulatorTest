@@ -1,6 +1,7 @@
 import solver from "javascript-lp-solver";
 
 const AURA_SELECTION_PRIORITY = 1000;
+const IMPORTANCE_COVERAGE_DECAY = 0.5;
 
 function roleScore(bossData, tag) {
     return Number(bossData.gain?.[tag] || 0);
@@ -18,6 +19,30 @@ function auraScore(bossData, aura, strength, bestStrength) {
     if (Number(strength || 0) <= 0) return 0;
     const ratio = Number(bestStrength || 0) > 0 ? Number(strength || 0) / Number(bestStrength || 0) : 0;
     return AURA_SELECTION_PRIORITY * ratio;
+}
+
+function addAllocationCoefficient(model, variableName, constraintName, value) {
+    model.variables[variableName][constraintName] = (model.variables[variableName][constraintName] || 0) + value;
+}
+
+function allocationImportanceCoverageGroups(bossData) {
+    const importance = bossData.importance || {};
+    const coveredTags = new Set();
+    const groups = [];
+    for (const [groupIndex, group] of (bossData.survivalGroups || []).entries()) {
+        const tags = (group.tags || []).filter(Boolean);
+        const cap = Math.max(0, Math.floor(Number(group.min) || 0));
+        const value = Math.max(0, ...tags.map((tag) => Number(importance[tag] || 0)));
+        if (!tags.length || cap <= 0 || value <= 0) continue;
+        tags.forEach((tag) => coveredTags.add(tag));
+        groups.push({ id: `survival_${groupIndex}`, tags, cap, importance: value });
+    }
+    for (const [tag, value] of Object.entries(importance)) {
+        const score = Number(value) || 0;
+        if (!tag || score <= 0 || coveredTags.has(tag)) continue;
+        groups.push({ id: `tag_${groups.length}`, tags: [tag], cap: 1, importance: score });
+    }
+    return groups;
 }
 
 function allocationMissingItems(candidates, bossEntries) {
@@ -51,6 +76,8 @@ function buildAllocationModel({ candidates, bossEntries, rosterLimit, diminishin
     const bossIds = bossEntries.map(([bossId]) => bossId);
     const [firstBossId, secondBossId] = bossIds;
     const bestStrengths = bestAuraStrengths(candidates, bossEntries);
+    const coverageGroupsByBoss = Object.fromEntries(bossEntries
+        .map(([bossId, bossData]) => [bossId, allocationImportanceCoverageGroups(bossData)]));
 
     for (const candidate of candidates) {
         model.constraints[`player_${candidate.playerIndex}`] = { max: 1 };
@@ -70,6 +97,18 @@ function buildAllocationModel({ candidates, bossEntries, rosterLimit, diminishin
         }
         for (const [groupIndex, group] of (bossData.survivalGroups || []).entries()) {
             model.constraints[`survival_${bossId}_${groupIndex}`] = { min: Number(group.min) || 0 };
+        }
+        for (const [coverageIndex, group] of (coverageGroupsByBoss[bossId] || []).entries()) {
+            for (let count = 1; count <= group.cap; count += 1) {
+                const constraintName = `coverage_${bossId}_${coverageIndex}_${count}`;
+                const variableName = `cover_${bossId}_${coverageIndex}_${count}`;
+                model.constraints[constraintName] = { min: 0 };
+                model.variables[variableName] = {
+                    score: group.importance * Math.pow(IMPORTANCE_COVERAGE_DECAY, count - 1),
+                    [constraintName]: -count,
+                };
+                model.binaries[variableName] = 1;
+            }
         }
     }
 
@@ -101,6 +140,12 @@ function buildAllocationModel({ candidates, bossEntries, rosterLimit, diminishin
                 for (const [groupIndex, group] of (bossData.survivalGroups || []).entries()) {
                     if (group.tags.includes(tag)) {
                         model.variables[variableName][`survival_${bossId}_${groupIndex}`] = 1;
+                    }
+                }
+                for (const [coverageIndex, group] of (coverageGroupsByBoss[bossId] || []).entries()) {
+                    if (!group.tags.includes(tag)) continue;
+                    for (let count = 1; count <= group.cap; count += 1) {
+                        addAllocationCoefficient(model, variableName, `coverage_${bossId}_${coverageIndex}_${count}`, 1);
                     }
                 }
                 model.binaries[variableName] = 1;

@@ -15,6 +15,7 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const LEGACY_API_SOURCE = ["w", "v"].join("");
 const AURA_SELECTION_PRIORITY = 1000;
+const IMPORTANCE_COVERAGE_DECAY = 0.5;
 const format = (value) => new Intl.NumberFormat("zh-CN").format(Math.round(Number(value) || 0));
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;",
@@ -65,11 +66,12 @@ const trialMessages = {
         progress: "当前等级 {level}，已通过 {layers} 层", presetName: "预设名称", levels: "等级", equipment: "装备",
         abilities: "技能与触发器", specialAbility: "特殊技能", abilitySlot: "技能槽", abilityLevel: "技能等级", triggers: "触发器",
         moveUp: "上移", moveDown: "下移",
-        baselineAblation: "Baseline 消融", ablationMode: "消融方案", ablationModeIncrement: "增量消融",
+        baselineAblation: "Baseline 消融", ablationMode: "消融方案", ablationModeIncrement: "增量消融", ablationModeReduction: "减量消融",
         ablationBoss: "消融目标", leftBoss: "左边 Boss", rightBoss: "右边 Boss",
         storeBaseline: "存入 baseline", runAblation: "开始消融", ablationRuns: "每项模拟次数", ablationConcurrency: "并行数",
-        ablationIncrements: "增量预设", baselineSaved: "已保存 baseline：{boss}，{count} 人。",
+        ablationIncrements: "增量预设", ablationReductions: "减量预设", baselineSaved: "已保存 baseline：{boss}，{count} 人。",
         noBaseline: "请先存入 baseline。", noAblationPresets: "请选择至少一个消融预设。",
+        noReductionPresets: "当前 baseline 中没有可减量的预设。",
         baselineFull: "baseline 已达到阵容人数上限，无法追加增量预设。", ablationRunning: "消融运行中…",
         ablationBaselineLabel: "Baseline",
         ablationProgress: "{label} 已完成 {run}/{runs} 次，总进度 {done}/{total}",
@@ -84,11 +86,11 @@ const trialMessages = {
         allocationContribution: "贡献", allocationTagStats: "Tag 统计", allocationAuraStats: "光环统计",
         allocationFailed: "自动分配失败：{message}", allocationInfeasible: "没有找到满足约束的分配方案",
         allocationMissing: "缺少可行候选：{items}", allocationApplied: "已应用自动分配到当前阵容。",
-        allocationHint: "使用 Reviewed 预设、tag、真实光环强度和增量消融收益自动分配当前两个 Boss。",
-        allocationConfig: "Boss 配置参数", allocationConfigHint: "这里配置每个 Boss 的生存线、必需光环和职业增量收益。保存后会影响下一次自动分配，并随完整预设导出。",
+        allocationHint: "使用 Reviewed 预设、tag、真实光环强度、增量消融收益和封顶重要性自动分配当前两个 Boss。",
+        allocationConfig: "Boss 配置参数", allocationConfigHint: "这里配置每个 Boss 的生存线、必需光环、职业增量收益和重要性。重要性只奖励生存线缺口，不会无限堆叠。",
         allocationSurvivalRules: "生存线 / 硬约束", allocationRequiredAuras: "必需光环", allocationRoleScores: "职业预设参数",
         allocationRuleName: "规则名", allocationRuleTags: "满足 tag（逗号分隔）", allocationRuleMin: "最少数量",
-        allocationRoleTagName: "职业 tag", allocationGain: "增量收益",
+        allocationRoleTagName: "职业 tag", allocationGain: "增量收益", allocationImportance: "重要性",
         addAllocationRule: "添加规则", addAllocationRoleScore: "添加职业参数", importAblationAllocationConfig: "导入消融数据",
         saveAllocationConfig: "保存配置", allocationConfigSaved: "Boss 配置参数已保存。", allocationConfigImported: "已导入 {count} 条消融数据到 {boss}。",
         delete: "删除",
@@ -131,7 +133,7 @@ const trialMessages = {
         ownedOptions: "★ 已拥有", allOptions: "全部",
         update20260720Title: "2026.7.20更新：",
         update20260720ApiImport: "新增从 API 导入配装：API 地址只用于本次读取，不写入 localStorage 或完整预设导出；API 预设以金色显示，复制后转为普通固定预设。",
-        update20260720Allocation: "新增自动分配与 Boss 配置参数弹窗，可编辑生存线、必需光环和职业增量收益；默认不再内置 Boss 配置。",
+        update20260720Allocation: "新增自动分配与 Boss 配置参数弹窗，可编辑生存线、必需光环、职业增量收益和封顶重要性；默认不再内置 Boss 配置。",
         update20260720AssignmentJson: "新增导出当前安排 JSON，可基于当前两个 Boss 阵容生成安排信息，并复用本页内存中的 API 数据识别角色。",
         update20260717Title: "2026.7.17更新：",
         update20260717PresetTransfer: "新增完整预设导入/导出，可用压缩文本备份和恢复当前设置、全部预设与阵容。",
@@ -165,11 +167,12 @@ const trialMessages = {
         progress: "Level {level}, {layers} layers cleared", presetName: "Preset Name", levels: "Levels", equipment: "Equipment",
         abilities: "Abilities & Triggers", specialAbility: "Special Ability", abilitySlot: "Ability Slot", abilityLevel: "Ability Level", triggers: "Triggers",
         moveUp: "Move Up", moveDown: "Move Down",
-        baselineAblation: "Baseline Ablation", ablationMode: "Ablation Mode", ablationModeIncrement: "Increment Ablation",
+        baselineAblation: "Baseline Ablation", ablationMode: "Ablation Mode", ablationModeIncrement: "Increment Ablation", ablationModeReduction: "Reduction Ablation",
         ablationBoss: "Ablation Target", leftBoss: "Left Boss", rightBoss: "Right Boss",
         storeBaseline: "Store Baseline", runAblation: "Run Ablation", ablationRuns: "Runs Per Item", ablationConcurrency: "Concurrency",
-        ablationIncrements: "Increment Presets", baselineSaved: "Baseline saved: {boss}, {count} combatants.",
+        ablationIncrements: "Increment Presets", ablationReductions: "Reduction Presets", baselineSaved: "Baseline saved: {boss}, {count} combatants.",
         noBaseline: "Store a baseline first.", noAblationPresets: "Select at least one ablation preset.",
+        noReductionPresets: "The current baseline has no presets available for reduction.",
         baselineFull: "Baseline already reached the roster limit; cannot add an increment preset.", ablationRunning: "Running ablation…",
         ablationBaselineLabel: "Baseline",
         ablationProgress: "{label} completed {run}/{runs}, total progress {done}/{total}",
@@ -184,11 +187,11 @@ const trialMessages = {
         allocationContribution: "Contribution", allocationTagStats: "Tag Stats", allocationAuraStats: "Aura Stats",
         allocationFailed: "Auto allocation failed: {message}", allocationInfeasible: "No allocation satisfies the constraints",
         allocationMissing: "Missing feasible candidates: {items}", allocationApplied: "Auto allocation applied to current rosters.",
-        allocationHint: "Allocates current two bosses using Reviewed presets, tags, real aura strength, and increment ablation gains.",
-        allocationConfig: "Boss Config", allocationConfigHint: "Configure survival constraints, required auras, and role gain for each boss. Saved config affects the next auto allocation and is included in full preset export.",
+        allocationHint: "Allocates current two bosses using Reviewed presets, tags, real aura strength, increment gains, and capped importance.",
+        allocationConfig: "Boss Config", allocationConfigHint: "Configure survival constraints, required auras, role gain, and importance for each boss. Importance only rewards survival coverage gaps and does not stack endlessly.",
         allocationSurvivalRules: "Survival / Hard Constraints", allocationRequiredAuras: "Required Auras", allocationRoleScores: "Role Parameters",
         allocationRuleName: "Rule Name", allocationRuleTags: "Matching Tags (comma-separated)", allocationRuleMin: "Minimum Count",
-        allocationRoleTagName: "Role Tag", allocationGain: "Gain",
+        allocationRoleTagName: "Role Tag", allocationGain: "Gain", allocationImportance: "Importance",
         addAllocationRule: "Add Rule", addAllocationRoleScore: "Add Role Parameter", importAblationAllocationConfig: "Import Ablation Data",
         saveAllocationConfig: "Save Config", allocationConfigSaved: "Boss config saved.", allocationConfigImported: "Imported {count} ablation rows into {boss}.",
         delete: "Delete",
@@ -231,7 +234,7 @@ const trialMessages = {
         ownedOptions: "★ Owned", allOptions: "All",
         update20260720Title: "2026.7.20 Update:",
         update20260720ApiImport: "Added API build import: API URLs are only used for the current fetch and are not written to localStorage or full preset exports. API presets are shown in gold, and copied API presets become regular fixed presets.",
-        update20260720Allocation: "Added auto allocation and the Boss config modal for editing survival lines, required auras, and role gain. Boss configs are no longer prefilled by default.",
+        update20260720Allocation: "Added auto allocation and the Boss config modal for editing survival lines, required auras, role gain, and capped importance. Boss configs are no longer prefilled by default.",
         update20260720AssignmentJson: "Added current assignment JSON export, generated from the current two boss rosters and using in-memory API data to resolve characters.",
         update20260717Title: "2026.7.17 Update:",
         update20260717PresetTransfer: "Added full preset import/export with compressed text for backing up and restoring settings, presets, and rosters.",
@@ -634,6 +637,7 @@ function normalizeAllocationConfig(config) {
                     .map((aura) => String(aura || "").trim())
                     .filter(Boolean),
                 gain: normalizeAllocationNumberMap(Object.prototype.hasOwnProperty.call(boss, "gain") ? boss.gain : fallback.gain),
+                importance: normalizeAllocationNumberMap(Object.prototype.hasOwnProperty.call(boss, "importance") ? boss.importance : fallback.importance),
             }];
         })),
     };
@@ -1806,6 +1810,26 @@ function auraScore(bossData, aura, strength, bestStrength) {
     return AURA_SELECTION_PRIORITY * ratio;
 }
 
+function allocationImportanceCoverageGroups(bossData) {
+    const importance = bossData.importance || {};
+    const coveredTags = new Set();
+    const groups = [];
+    for (const [groupIndex, group] of (bossData.survivalGroups || []).entries()) {
+        const tags = (group.tags || []).filter(Boolean);
+        const cap = Math.max(0, Math.floor(Number(group.min) || 0));
+        const value = Math.max(0, ...tags.map((tag) => Number(importance[tag] || 0)));
+        if (!tags.length || cap <= 0 || value <= 0) continue;
+        tags.forEach((tag) => coveredTags.add(tag));
+        groups.push({ id: `survival_${groupIndex}`, tags, cap, importance: value });
+    }
+    for (const [tag, value] of Object.entries(importance)) {
+        const score = Number(value) || 0;
+        if (!tag || score <= 0 || coveredTags.has(tag)) continue;
+        groups.push({ id: `tag_${groups.length}`, tags: [tag], cap: 1, importance: score });
+    }
+    return groups;
+}
+
 function scoreDataForEncounter(encounterHrid) {
     const entry = Object.entries(state.allocationConfig?.bosses || {})
         .find(([, bossData]) => bossData.encounterHrid === encounterHrid);
@@ -1834,6 +1858,7 @@ function blankAllocationBossConfig(encounterHrid) {
         survivalGroups: [],
         requiredAuras: [],
         gain: {},
+        importance: {},
     };
 }
 
@@ -1924,6 +1949,8 @@ function buildAllocationModel(candidates) {
     const metadata = {};
     const bossIds = allocationBossEntries().map(([bossId]) => bossId);
     const [firstBossId, secondBossId] = bossIds;
+    const coverageGroupsByBoss = Object.fromEntries(allocationBossEntries()
+        .map(([bossId, bossData]) => [bossId, allocationImportanceCoverageGroups(bossData)]));
 
     for (const candidate of candidates) {
         model.constraints[`player_${candidate.playerIndex}`] = { max: 1 };
@@ -1942,6 +1969,18 @@ function buildAllocationModel(candidates) {
         }
         for (const [groupIndex, group] of (bossData.survivalGroups || []).entries()) {
             model.constraints[`survival_${bossId}_${groupIndex}`] = { min: Number(group.min) || 0 };
+        }
+        for (const [coverageIndex, group] of (coverageGroupsByBoss[bossId] || []).entries()) {
+            for (let count = 1; count <= group.cap; count += 1) {
+                const constraintName = `coverage_${bossId}_${coverageIndex}_${count}`;
+                const variableName = `cover_${bossId}_${coverageIndex}_${count}`;
+                model.constraints[constraintName] = { min: 0 };
+                model.variables[variableName] = {
+                    score: group.importance * Math.pow(IMPORTANCE_COVERAGE_DECAY, count - 1),
+                    [constraintName]: -count,
+                };
+                model.binaries[variableName] = 1;
+            }
         }
     }
     if (diminishingPenalty > 0 && firstBossId && secondBossId) {
@@ -1978,6 +2017,12 @@ function buildAllocationModel(candidates) {
                 for (const [groupIndex, group] of (bossData.survivalGroups || []).entries()) {
                     if (group.tags.includes(tag)) {
                         model.variables[variableName][`survival_${bossId}_${groupIndex}`] = 1;
+                    }
+                }
+                for (const [coverageIndex, group] of (coverageGroupsByBoss[bossId] || []).entries()) {
+                    if (!group.tags.includes(tag)) continue;
+                    for (let count = 1; count <= group.cap; count += 1) {
+                        addAllocationCoefficient(model, variableName, `coverage_${bossId}_${coverageIndex}_${count}`, 1);
                     }
                 }
                 model.binaries[variableName] = 1;
@@ -2121,6 +2166,7 @@ function parseCsv(text) {
 function allocationScoreTags(bossData) {
     return [...new Set([
         ...Object.keys(bossData.gain || {}),
+        ...Object.keys(bossData.importance || {}),
     ])].sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
 
@@ -2141,6 +2187,7 @@ function renderAllocationConfigBoss(bossKey, bossData) {
         <tr data-allocation-score-row>
             <td><input class="form-control form-control-sm" data-allocation-score-tag value="${escapeHtml(tag)}"></td>
             <td><input class="form-control form-control-sm" type="number" step="0.0001" data-allocation-score-gain value="${Number(bossData.gain?.[tag] || 0)}"></td>
+            <td><input class="form-control form-control-sm" type="number" step="0.0001" data-allocation-score-importance value="${Number(bossData.importance?.[tag] || 0)}"></td>
             <td class="text-end"><button class="btn btn-outline-danger btn-sm" type="button" data-allocation-config-action="remove-row">${tr("delete")}</button></td>
         </tr>`).join("");
     return `<section class="outlined-box allocation-config-boss" data-allocation-boss="${escapeHtml(bossKey)}">
@@ -2188,6 +2235,7 @@ function renderAllocationConfigBoss(bossKey, bossData) {
                     <thead><tr>
                         <th>${tr("allocationRoleTagName")}</th>
                         <th style="width:150px">${tr("allocationGain")}</th>
+                        <th style="width:150px">${tr("allocationImportance")}</th>
                         <th style="width:80px"></th>
                     </tr></thead>
                     <tbody data-allocation-score-body>${scoreRows}</tbody>
@@ -2218,6 +2266,7 @@ function allocationScoreRowHtml() {
     return `<tr data-allocation-score-row>
         <td><input class="form-control form-control-sm" data-allocation-score-tag value=""></td>
         <td><input class="form-control form-control-sm" type="number" step="0.0001" data-allocation-score-gain value="0"></td>
+        <td><input class="form-control form-control-sm" type="number" step="0.0001" data-allocation-score-importance value="0"></td>
         <td class="text-end"><button class="btn btn-outline-danger btn-sm" type="button" data-allocation-config-action="remove-row">${tr("delete")}</button></td>
     </tr>`;
 }
@@ -2227,10 +2276,12 @@ function allocationConfigFromEditor() {
     document.querySelectorAll("[data-allocation-boss]").forEach((section) => {
         const bossKey = section.dataset.allocationBoss;
         const gain = {};
+        const importance = {};
         section.querySelectorAll("[data-allocation-score-row]").forEach((row) => {
             const tag = row.querySelector("[data-allocation-score-tag]").value.trim();
             if (!tag) return;
             gain[tag] = Number(row.querySelector("[data-allocation-score-gain]").value) || 0;
+            importance[tag] = Number(row.querySelector("[data-allocation-score-importance]").value) || 0;
         });
         bosses[bossKey] = {
             label: section.querySelector("[data-allocation-boss-label]").value.trim() || bossKey,
@@ -2242,6 +2293,7 @@ function allocationConfigFromEditor() {
                 min: Math.max(0, Math.floor(Number(row.querySelector("[data-allocation-survival-min]").value) || 0)),
             })).filter((group) => group.name || group.tags.length || group.min > 0),
             gain,
+            importance,
         };
     });
     return normalizeAllocationConfig({ bosses });
@@ -2273,10 +2325,13 @@ function importAblationResultsToAllocationConfig() {
     if (!bossData) return;
     let imported = 0;
     for (const entry of ablationState.results) {
-        if (entry.mode !== "increment") continue;
         const tag = ablationResultTag(entry);
         if (!tag) continue;
-        bossData.gain[tag] = (Number(entry.diffPercent) || 0) / 100;
+        if (entry.mode === "reduction") {
+            bossData.importance[tag] = Math.max(0, -(Number(entry.diffPercent) || 0) / 100);
+        } else {
+            bossData.gain[tag] = (Number(entry.diffPercent) || 0) / 100;
+        }
         imported += 1;
     }
     state.allocationConfig = normalizeAllocationConfig(state.allocationConfig);
@@ -2712,6 +2767,12 @@ function averageResults(results) {
 }
 
 function ablationOptions() {
+    if (ablationState.mode === "reduction") {
+        return (ablationState.baseline?.templates || []).map((template, index) => ({
+            value: String(index),
+            label: `${template.name} x${Number(template.count || 0)}`,
+        }));
+    }
     return state.presets.map((preset) => ({
         value: preset.id,
         label: preset.name,
@@ -2761,7 +2822,9 @@ function renderAblationPanel() {
             ${escapeHtml(option.label)}
         </option>
     `).join("");
-    const selectHint = "";
+    const selectHint = ablationState.mode === "reduction" && !presetOptions
+        ? `<div class="small text-muted mt-1">${tr("noReductionPresets")}</div>`
+        : "";
 
     target.innerHTML = `
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -2770,8 +2833,11 @@ function renderAblationPanel() {
         </div>
         <div class="ablation-grid">
             <div>
-                <label class="form-label">${tr("ablationMode")}</label>
-                <div class="form-control bg-light">${tr("ablationModeIncrement")}</div>
+                <label class="form-label" for="ablationMode">${tr("ablationMode")}</label>
+                <select id="ablationMode" class="form-select" ${ablationState.isRunning ? "disabled" : ""}>
+                    <option value="increment" ${ablationState.mode === "increment" ? "selected" : ""}>${tr("ablationModeIncrement")}</option>
+                    <option value="reduction" ${ablationState.mode === "reduction" ? "selected" : ""}>${tr("ablationModeReduction")}</option>
+                </select>
             </div>
             <div>
                 <label class="form-label" for="ablationBoss">${tr("ablationBoss")}</label>
@@ -2796,7 +2862,7 @@ function renderAblationPanel() {
             </div>
         </div>
         <div class="mt-3">
-            <label class="form-label" for="ablationPresets">${tr("ablationIncrements")}</label>
+            <label class="form-label" for="ablationPresets">${tr(ablationState.mode === "reduction" ? "ablationReductions" : "ablationIncrements")}</label>
             <select id="ablationPresets" class="form-select" multiple size="6" ${ablationState.isRunning ? "disabled" : ""}>
                 ${presetOptions}
             </select>
@@ -3332,6 +3398,14 @@ function storeAblationBaseline() {
     renderAblationPanel();
 }
 
+function reducedTemplatesForIndex(baseline, templateIndex) {
+    const templates = clone(baseline.templates);
+    const template = templates[templateIndex];
+    if (!template) return null;
+    template.count = Math.max(0, Number(template.count || 0) - 1);
+    return templates.filter((item) => Number(item.count || 0) > 0);
+}
+
 async function runRepeatedTrial(label, runCount, templates, completedBefore, totalRuns, baseline) {
     const results = Array(runCount);
     const concurrency = Math.min(runCount, Math.max(1, Math.floor(Number(ablationState.concurrency) || 1)));
@@ -3387,21 +3461,28 @@ async function runRepeatedTrial(label, runCount, templates, completedBefore, tot
 }
 
 async function runAblation() {
-    ablationState.mode = "increment";
     if (!ablationState.baseline) {
         ablationState.error = tr("noBaseline");
         renderAblationPanel();
         return;
     }
-    const selectedItems = ablationState.selectedPresetIds
-        .map((id) => state.presets.find((preset) => preset.id === id))
-        .filter(Boolean);
+    const selectedItems = ablationState.mode === "reduction"
+        ? ablationState.selectedPresetIds
+            .map((value) => {
+                const index = Number(value);
+                const template = ablationState.baseline.templates[index];
+                return template ? { id: value, name: template.name, templateIndex: index } : null;
+            })
+            .filter(Boolean)
+        : ablationState.selectedPresetIds
+            .map((id) => state.presets.find((preset) => preset.id === id))
+            .filter(Boolean);
     if (!selectedItems.length) {
         ablationState.error = tr("noAblationPresets");
         renderAblationPanel();
         return;
     }
-    if (participantCountFromTemplates(ablationState.baseline.templates) >= state.settings.rosterLimit) {
+    if (ablationState.mode === "increment" && participantCountFromTemplates(ablationState.baseline.templates) >= state.settings.rosterLimit) {
         ablationState.error = tr("baselineFull");
         renderAblationPanel();
         return;
@@ -3419,7 +3500,10 @@ async function runAblation() {
         const baselineRuns = await runRepeatedTrial(tr("ablationBaselineLabel"), runs, baseline.templates, 0, totalRuns, baseline);
         const baselineAverage = averageResults(baselineRuns);
         for (const [itemIndex, item] of selectedItems.entries()) {
-            const templates = [...clone(baseline.templates), clone({ name: item.name, count: 1, build: item.build })];
+            const templates = ablationState.mode === "reduction"
+                ? reducedTemplatesForIndex(baseline, item.templateIndex)
+                : [...clone(baseline.templates), clone({ name: item.name, count: 1, build: item.build })];
+            if (!templates) continue;
             const completedBefore = (itemIndex + 1) * runs;
             const variantRuns = await runRepeatedTrial(item.name, runs, templates, completedBefore, totalRuns, baseline);
             const variantAverage = averageResults(variantRuns);
@@ -3826,6 +3910,14 @@ function bindPageEvents() {
         }
     });
     document.addEventListener("change", (event) => {
+        if (event.target.id === "ablationMode") {
+            ablationState.mode = event.target.value === "reduction" ? "reduction" : "increment";
+            ablationState.selectedPresetIds = [];
+            ablationState.results = [];
+            ablationState.error = "";
+            renderAblationPanel();
+            return;
+        }
         if (event.target.id === "ablationBoss") {
             ablationState.targetBossIndex = Number(event.target.value) || 0;
             renderAblationPanel();
