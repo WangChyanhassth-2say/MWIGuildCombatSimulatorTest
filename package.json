@@ -1,6 +1,6 @@
 {
     "name": "mwi-guild-combat-simulator",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Milky Way Idle 公会战斗试炼阵容模拟器",
     "main": "index.js",
     "scripts": {

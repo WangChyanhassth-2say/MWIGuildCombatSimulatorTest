@@ -432,7 +432,8 @@ function apiEquipmentOptionsBySlot(characterData) {
     for (const item of characterData.characterItems || []) {
         const detail = itemsMap[item.itemHrid];
         const slot = detail?.equipmentDetail?.type?.replace("/equipment_types/", "");
-        if (!options[slot] || Number(item.count || 0) <= 0) {
+        // Equipped items may omit count or report 0; treat missing count as owned.
+        if (!options[slot] || (item.count != null && Number(item.count) <= 0)) {
             continue;
         }
         const existing = options[slot].find((option) => option.itemHrid === item.itemHrid);
@@ -671,7 +672,8 @@ function normalizeState(saved) {
             if (source?.source === "api" || source?.source === LEGACY_API_SOURCE) {
                 preset.source = "api";
                 preset.sourceCharacterId ||= source.sourceCharacterId;
-                preset.constraints ||= source.constraints ? clone(source.constraints) : undefined;
+                // Always refresh owned gear/skills from the live API source.
+                if (source.constraints) preset.constraints = clone(source.constraints);
             }
         });
     presets.forEach((preset) => {
@@ -1332,16 +1334,29 @@ function setBuildEquipment(build, equipment) {
         .filter((item) => !conflictingEquipmentSlots(slot).includes(equipmentSlot(item)));
 }
 
+function equipmentTypeSlot(itemHrid) {
+    return itemsMap[itemHrid]?.equipmentDetail?.type?.replace("/equipment_types/", "") || "";
+}
+
+function bestOwnedInItemFamily(candidates, requiredHrid) {
+    const requiredKey = normalizedItemKey(requiredHrid);
+    if (!requiredKey) return null;
+    return candidates
+        .filter((owned) => owned?.itemHrid && normalizedItemKey(owned.itemHrid) === requiredKey)
+        .sort(compareEquipmentOptions)[0] || null;
+}
+
 function bestOwnedEquipmentForRequirement(sourcePreset, required) {
-    const slot = equipmentSlot(required);
-    const available = apiAvailableEquipmentBySlot(sourcePreset)[slot] || [];
-    const requiredKey = normalizedItemKey(required.itemHrid);
-    const requiredFamily = available
-        .filter((owned) => normalizedItemKey(owned.itemHrid) === requiredKey)
-        .sort(compareEquipmentOptions);
-    if (requiredFamily.length) {
-        return requiredFamily[0];
-    }
+    const requiredHrid = required?.itemHrid;
+    if (!requiredHrid) return null;
+    const slot = equipmentSlot(required) || equipmentTypeSlot(requiredHrid);
+    const bySlot = apiAvailableEquipmentBySlot(sourcePreset);
+    const available = bySlot[slot] || [];
+    const fromSlotFamily = bestOwnedInItemFamily(available, requiredHrid);
+    if (fromSlotFamily) return fromSlotFamily;
+    // Safety net: same-name / refined may sit under another slot key in constraints.
+    const fromAnyFamily = bestOwnedInItemFamily(Object.values(bySlot).flat(), requiredHrid);
+    if (fromAnyFamily) return fromAnyFamily;
     const options = available
         .filter((owned) => apiEquipmentMatchesRequirement(owned, required, { allowLevelUpgrade: false }))
         .sort(compareEquipmentOptions);
@@ -1354,11 +1369,13 @@ function bestOwnedEquipmentForRequirement(sourcePreset, required) {
 
 function alignBuildEquipmentToDefault(build, sourcePreset, defaultPreset) {
     for (const required of defaultPreset?.build?.player?.equipment || []) {
+        if (!required?.itemHrid) continue;
         const owned = bestOwnedEquipmentForRequirement(sourcePreset, required);
         if (owned) {
             setBuildEquipment(build, {
-                ...owned,
-                itemLocationHrid: required.itemLocationHrid,
+                itemHrid: owned.itemHrid,
+                enhancementLevel: Number(owned.enhancementLevel) || 0,
+                itemLocationHrid: required.itemLocationHrid || `/item_locations/${equipmentTypeSlot(owned.itemHrid)}`,
             });
         }
     }
@@ -1571,31 +1588,52 @@ function clearAllInsanityRevive() {
     saveAndRender();
 }
 
+function liveEquipmentSourcePreset(sourcePreset) {
+    if (!sourcePreset) return sourcePreset;
+    if (isReviewedPreset(sourcePreset)) {
+        const apiSource = state.presets.find((preset) => preset.id === sourcePreset.sourcePresetId);
+        if (apiSource) {
+            return {
+                ...sourcePreset,
+                build: apiSource.build || sourcePreset.build,
+                constraints: apiSource.constraints || sourcePreset.constraints,
+                source: apiSource.source || sourcePreset.source,
+                sourceCharacterId: apiSource.sourceCharacterId || sourcePreset.sourceCharacterId,
+            };
+        }
+    }
+    return sourcePreset;
+}
+
 function buildGuildTrialFixedPreset(sourcePreset, role, aura) {
     const defaultPreset = defaultPresetForTag(role.tag);
-    const build = clone(sourcePreset.build);
+    const equipmentSource = liveEquipmentSourcePreset(sourcePreset);
+    const build = clone(equipmentSource.build);
     build.player.equipment ||= [];
     build.abilities ||= [];
     build.triggerMap ||= {};
     if (defaultPreset) {
-        alignBuildEquipmentToDefault(build, sourcePreset, defaultPreset);
-        alignBuildAbilitiesToDefault(build, sourcePreset, defaultPreset, aura?.aura || "");
+        alignBuildEquipmentToDefault(build, equipmentSource, defaultPreset);
+        alignBuildAbilitiesToDefault(build, equipmentSource, defaultPreset, aura?.aura || "");
     } else {
         const specialAbilityHrid = aura?.aura ? auraAbilityHrid(aura.aura) : "";
         build.abilities[0] = { abilityHrid: "", level: 1 };
         if (specialAbilityHrid) {
-            build.abilities[0] = { abilityHrid: specialAbilityHrid, level: presetAbilityLevels(sourcePreset)[specialAbilityHrid] || 1 };
+            build.abilities[0] = {
+                abilityHrid: specialAbilityHrid,
+                level: presetAbilityLevels(equipmentSource)[specialAbilityHrid] || 1,
+            };
         }
     }
     const generatedBaseName = `${allocationPresetBaseName(sourcePreset.name)}-公会试炼-${role.tag}`;
     const preset = {
         id: createId(),
         type: "fixed",
-        source: sourcePreset.source,
-        sourceCharacterId: sourcePreset.sourceCharacterId,
+        source: equipmentSource.source,
+        sourceCharacterId: equipmentSource.sourceCharacterId,
         name: generatedBaseName,
         build,
-        constraints: sourcePreset.constraints ? clone(sourcePreset.constraints) : undefined,
+        constraints: equipmentSource.constraints ? clone(equipmentSource.constraints) : undefined,
         generatedFromAllocation: true,
         generatedBaseName,
         sourceReviewedId: sourcePreset.id,
