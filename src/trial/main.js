@@ -410,10 +410,16 @@ function itemMapFromCharacter(characterData) {
         .map((item) => [item.hash, item]));
 }
 
+function isRefinedItemHrid(itemHrid) {
+    const text = String(itemHrid || "").toLowerCase();
+    return /_(refined|star|stellar|starlight)(_|$)/.test(text);
+}
+
 function compareEquipmentOptions(a, b) {
     const aDetail = itemsMap[a.itemHrid] || {};
     const bDetail = itemsMap[b.itemHrid] || {};
     return (Number(bDetail.itemLevel) || 0) - (Number(aDetail.itemLevel) || 0)
+        || (isRefinedItemHrid(b.itemHrid) ? 1 : 0) - (isRefinedItemHrid(a.itemHrid) ? 1 : 0)
         || (Number(b.enhancementLevel) || 0) - (Number(a.enhancementLevel) || 0)
         || (Number(bDetail.sortIndex) || 0) - (Number(aDetail.sortIndex) || 0);
 }
@@ -1329,27 +1335,21 @@ function setBuildEquipment(build, equipment) {
 function bestOwnedEquipmentForRequirement(sourcePreset, required) {
     const slot = equipmentSlot(required);
     const available = apiAvailableEquipmentBySlot(sourcePreset)[slot] || [];
-    const current = (sourcePreset.build?.player?.equipment || []).find((equipment) => equipmentSlot(equipment) === slot);
-    if (current) {
-        const currentKey = normalizedItemKey(current.itemHrid);
-        const currentFamily = available
-            .filter((owned) => normalizedItemKey(owned.itemHrid) === currentKey)
-            .sort((a, b) => (Number(b.enhancementLevel) || 0) - (Number(a.enhancementLevel) || 0)
-                || (Number(itemsMap[b.itemHrid]?.itemLevel) || 0) - (Number(itemsMap[a.itemHrid]?.itemLevel) || 0)
-                || (Number(itemsMap[b.itemHrid]?.sortIndex) || 0) - (Number(itemsMap[a.itemHrid]?.sortIndex) || 0));
-        if (currentFamily.length) {
-            const bestOwned = currentFamily[0];
-            return (Number(current.enhancementLevel) || 0) > (Number(bestOwned.enhancementLevel) || 0)
-                ? current
-                : bestOwned;
-        }
+    const requiredKey = normalizedItemKey(required.itemHrid);
+    const requiredFamily = available
+        .filter((owned) => normalizedItemKey(owned.itemHrid) === requiredKey)
+        .sort(compareEquipmentOptions);
+    if (requiredFamily.length) {
+        return requiredFamily[0];
     }
     const options = available
-        .filter((owned) => apiEquipmentMatchesRequirement(owned, required, { allowLevelUpgrade: false }));
+        .filter((owned) => apiEquipmentMatchesRequirement(owned, required, { allowLevelUpgrade: false }))
+        .sort(compareEquipmentOptions);
+    if (options.length) return options[0];
     const fallbackOptions = available
-        .filter((owned) => apiEquipmentMatchesRequirement(owned, required, { allowLevelUpgrade: true }));
-    const selected = [...options, ...fallbackOptions].sort(compareEquipmentOptions)[0] || null;
-    return selected;
+        .filter((owned) => apiEquipmentMatchesRequirement(owned, required, { allowLevelUpgrade: true }))
+        .sort(compareEquipmentOptions);
+    return fallbackOptions[0] || null;
 }
 
 function alignBuildEquipmentToDefault(build, sourcePreset, defaultPreset) {
